@@ -17,7 +17,7 @@ learning_rate_min = 1e-5
 
 weight_decay = 1e-8 # 'wd':0.0001  # weight_decay = 1e-6  to avoid overfitting
 
-ss = 16 # shell size (number of points contained in each shell)
+ss = 32 # shell size (number of points contained in each shell)
 sconv_param_name = ('K', 'D', 'P', 'C')
 sconv_params = [dict(zip(sconv_param_name, sconv_param)) for sconv_param in
                 [
@@ -27,6 +27,7 @@ sconv_params = [dict(zip(sconv_param_name, sconv_param)) for sconv_param in
 
 sdconv_params = None
 
+norm = 'l1'
 x=2
 
 fc_param_name = ('C', 'dropout_rate')

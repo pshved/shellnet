@@ -1,5 +1,7 @@
 import tensorflow as tf
 import numpy as np
+import scipy as sp
+import scipy.special
 import math
 import sys
 import os
@@ -31,8 +33,15 @@ def placeholder_inputs(batch_size, num_point):
     labels_pl = tf.placeholder(tf.int32, shape=(batch_size))
     return pointclouds_pl, labels_pl
 
-def shellconv(pts, fts_prev, qrs, is_training, tag, K, D, P, C, with_local, bn_decay=None):
-    indices = pf.knn_indices_general(qrs, pts, K, True)
+def shellconv(pts, fts_prev, qrs, is_training, tag, K, D, P, C, with_local, bn_decay=None, norm='l2'):
+    indices = pf.knn_indices_general(qrs, pts, K, True, norm=norm)
+    if norm == 'l1':
+        # Adjust the max distance so that the hypercube is of the same volume
+        # as the hyperball, for fairness.
+        #
+        # Oh, wait, shell size D is the number of points, not the max distance...
+        # D = int(D * np.sqrt(3.141592) / np.exp(1.0 / C * sp.special.loggamma(0.5 * C + 1)))
+        pass
 
     nn_pts = tf.gather_nd(pts, indices, name=tag + 'nn_pts')  # (N, P, K, 3)
     nn_pts_center = tf.expand_dims(qrs, axis=2, name=tag + 'nn_pts_center')  # (N, P, 1, 3)
@@ -61,7 +70,7 @@ def shellconv(pts, fts_prev, qrs, is_training, tag, K, D, P, C, with_local, bn_d
     fts_X = tf.squeeze(fts_X, axis=-2)
     return fts_X
     
-def get_model(layer_pts, is_training, sconv_params, sdconv_params, fc_params, sampling='random', weight_decay=0.0, bn_decay=None, part_num=8):
+def get_model(layer_pts, is_training, sconv_params, sdconv_params, fc_params, sampling='random', weight_decay=0.0, bn_decay=None, part_num=8, norm='l2'):
     if sampling == 'fps':
         sys.path.append(os.path.join(BASE_DIR, 'tf_ops/sampling'))
         from tf_sampling import farthest_point_sample, gather_point
@@ -85,7 +94,7 @@ def get_model(layer_pts, is_training, sconv_params, sdconv_params, fc_params, sa
                 print('Unknown sampling method!')
                 exit()
 
-        layer_fts= shellconv(layer_pts_list[-1], layer_fts_list[-1], qrs, is_training, tag, K, D, P, C, True, bn_decay)
+        layer_fts= shellconv(layer_pts_list[-1], layer_fts_list[-1], qrs, is_training, tag, K, D, P, C, True, bn_decay, norm=norm)
 
         layer_pts = qrs
         layer_pts_list.append(qrs)
@@ -107,7 +116,7 @@ def get_model(layer_pts, is_training, sconv_params, sdconv_params, fc_params, sa
             C = fts_qrs.get_shape()[-1].value if fts_qrs is not None else C//2
             P = qrs.get_shape()[1].value
             
-            layer_fts= shellconv(pts, fts, qrs, is_training, tag, K, D, P, C, True, bn_decay)
+            layer_fts= shellconv(pts, fts, qrs, is_training, tag, K, D, P, C, True, bn_decay, norm=norm)
             if fts_qrs is not None: # this is for last layer
                 fts_concat = tf.concat([layer_fts, fts_qrs], axis=-1, name=tag + 'fts_concat')
                 fts = dense(fts_concat, C, is_training, tag + 'mlp', bn_decay=bn_decay)           

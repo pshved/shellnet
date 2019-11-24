@@ -122,6 +122,24 @@ def batch_distance_matrix_general(A, B):
     D = r_A - 2 * m + tf.transpose(r_B, perm=(0, 2, 1))
     return D
 
+# A shape is (N, P_A, C), B shape is (N, P_B, C)
+# D shape is (N, P_A, P_B)
+def batch_distance_matrix_general_l1(A, B):
+    """L1 norm"""
+    # Add one dimension
+    Ac = tf.transpose(tf.expand_dims(A, axis=-1), perm=(0,2,1,3))  # (N, C, P_A, 1)
+    Bc = tf.transpose(tf.expand_dims(B, axis=-1), perm=(0,2,3,1))  # (N, C, 1, P_B)
+    A_1s = tf.ones_like(Ac)
+    B_1s = tf.ones_like(Bc)
+
+    A_exp = tf.matmul(Ac, B_1s)  # (N, C, P_A, P_B) where each A[ijk] value is copied along x in A_exp[ijkx]
+    B_exp = tf.matmul(A_1s, Bc)  # (N, C, P_A, P_B) where each B[ijk] value is copied along x in B_exp[ijxk]
+    # A_exp - B_exp is now pairwise a_i - b_j for each channel :-)
+
+    D = tf.reduce_max(tf.abs(A_exp - B_exp), axis=1)
+
+    return D
+
 
 # A shape is (N, P, C)
 def find_duplicate_columns(A):
@@ -156,12 +174,15 @@ def knn_indices(points, k, sort=True, unique=True):
 
 
 # return shape is (N, P, K, 2)
-def knn_indices_general(queries, points, k, sort=True, unique=True):
+def knn_indices_general(queries, points, k, sort=True, unique=True, norm='l2'):
     queries_shape = tf.shape(queries)
     batch_size = queries_shape[0]
     point_num = queries_shape[1]
     tmp_k = 0
-    D = batch_distance_matrix_general(queries, points)
+    if norm == 'l1':
+        D = batch_distance_matrix_general_l1(queries, points)
+    else:
+        D = batch_distance_matrix_general(queries, points)
     if unique:
         prepare_for_unique_top_k(D, points)
     _, point_indices = tf.nn.top_k(-D, k=k+tmp_k, sorted=sort)  # (N, P, K)

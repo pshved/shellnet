@@ -81,7 +81,8 @@ def main():
     logits_op = model.get_model(data_pl, is_training_pl, setting.sconv_params, setting.sdconv_params, setting.fc_params, 
                                 weight_decay=setting.weight_decay, 
                                 bn_decay = bn_decay_op, 
-                                part_num=setting.num_class)
+                                part_num=setting.num_class,
+                                norm=setting.norm)
 
     # compute loss
     if setting.with_multi:
